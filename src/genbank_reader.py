@@ -1,5 +1,5 @@
 """
-Lê a sequência
+Read the sequences from a GenBank file and return them as a list of SeqRecord objects.
 """
 
 from Bio import SeqIO
@@ -93,127 +93,64 @@ def preprocess_genbank_file(genbank_input_filepath, INJECTION_RATE):
     # Variable that contains all of the processed data
     data = []
     num = 0
-    seen_sequences = set()
 
     for register in SeqIO.parse(genbank_input_filepath + ".gb", "genbank"):
-        try:
-            if not validate_register(register):
-                print(f"Pulando sequência pois não passou na verificação")
-                continue
 
-            # Converte para string E garante maiúsculas para evitar erros ocultos
-            seq = str(register.seq).upper()
-
-            if len(seq) > 20000:
-                print(f"Pulando sequência de {len(seq)} bases...")
-                continue
-
-            if seq in seen_sequences:
-                print(f"Pulando sequência pois é repetida")
-                continue
-
-            # Pega o CDS primeiro
-            cds_feature = None
-            for feature in register.features:
-                if feature.type == "CDS":
-                    cds_feature = feature
-                    break
-
-            if cds_feature is None:
-                print(f"Pulando sequência pois não tem CDS")
-                continue
-
-            # Procura o mRNA que contém o CDS
-            target_feature = None
-            cds_start = int(cds_feature.location.start)
-            cds_end   = int(cds_feature.location.end)
-
-            for feature in register.features:
-                if feature.type == "mRNA":
-                    mrna_start = int(feature.location.start)
-                    mrna_end   = int(feature.location.end)
-                    if mrna_start <= cds_start and mrna_end >= cds_end:
-                        target_feature = feature
-                        break
-
-            # ... (código anterior que acha o target_feature do mRNA) ...
-
-            if target_feature is None:
-                target_feature = cds_feature
-
-            # ======================================================
-            # 1. O CORTE CIRÚRGICO (Matando a Armadilha do Promotor)
-            # ======================================================
-            mrna_start = int(target_feature.location.start)
-            mrna_end   = int(target_feature.location.end)
-
-            # Recorta EXATAMENTE o tamanho do gene (ignora os milhares de pares de bases ao redor)
-            cropped_seq_obj = register.seq[mrna_start:mrna_end]
-
-            # Usa o seu extractor para pegar as coordenadas brutas
-            exons_intervals_raw = re.make_exons_intervals_list(target_feature.location)
-
-            # Arrasta as coordenadas para o novo "Ponto Zero" (já que cortamos o começo)
-            exons_intervals = [[s - mrna_start, e - mrna_start] for s, e in exons_intervals_raw]
-
-            # ======================================================
-            # 2. A MÁGICA DA FITA REVERSA
-            # ======================================================
-            if target_feature.location.strand == -1:
-                # Vira a fita do avesso (A vira T, C vira G, e de trás pra frente)
-                seq = str(cropped_seq_obj.reverse_complement()).upper()
-
-                L = len(seq)
-                exons_intervals_rev = []
-
-                # Espelha as coordenadas para a nova fita invertida
-                for s, e in exons_intervals:
-                    new_start = L - 1 - e
-                    new_end = L - 1 - s
-                    exons_intervals_rev.append([new_start, new_end])
-
-                # Como a fita virou de trás pra frente, os últimos éxons viraram os primeiros.
-                # Então, reordenamos a lista para o Python ler certinho da esquerda pra direita
-                exons_intervals = sorted(exons_intervals_rev, key=lambda x: x[0])
-            else:
-                # Se for fita positiva, é só converter pra string e seguir a vida
-                seq = str(cropped_seq_obj).upper()
-
-            # ======================================================
-            # 3. O ESCUDO ANTI-ALUCINAÇÃO (Single-Exon)
-            # ======================================================
-            # Agora criamos os íntrons usando a sua função
-            introns_intervals = re.make_introns_intervals_list(exons_intervals)
-
-            if len(introns_intervals) == 0:
-                print("Pulando gene sem íntrons...")
-
-            # ======================================================
-            # SEGUE O JOGO
-            # ======================================================
-            seq = inject_degenerate_nucleotides(seq, exons_intervals, introns_intervals, INJECTION_RATE)
-
-            introns = re.make_introns_list(introns_intervals, seq)
-            exons = re.make_exons_list(exons_intervals, seq)
-
-            sample = {
-                "sequence": seq,
-                "exon_intervals": exons_intervals,
-                "exons": exons,
-                "intron_intervals": introns_intervals,
-                "introns": introns,
-            }
-
-            num = num + 1
-            seen_sequences.add(seq)
-            data.append(sample)
-
-        except Exception as e:
-            print(f"\nErro ao processar o registro {register.id}: {e}")
-            print("Pulando para o próximo...\n")
+        if not validate_register(register):
             continue
 
+        # Convert seq object to string
+        seq = str(register.seq)
+
+        # Lists that cointains the intervals of introns and exons in the sequence
+        exons_intervals = re.make_exons_intervals_list(register.features[-1].location)
+        introns_intervals = re.make_introns_intervals_list(exons_intervals, len(seq))
+
+        seq = inject_degenerate_nucleotides(seq, exons_intervals, introns_intervals, INJECTION_RATE)
+
+        # Lists that cointains the sequences of introns and exons
+        introns = re.make_introns_list(introns_intervals, seq)
+        exons = re.make_exons_list(exons_intervals, seq)
+
+        sample = {
+            "sequence": seq,
+            "exon_intervals": exons_intervals,
+            "exons": exons,
+            "intron_intervals": introns_intervals,
+            "introns": introns,
+        }
+
+        num = num + 1
+        data.append(sample)
+        data = remove_duplicates(data)
+
     return data
+
+def remove_duplicates(data):
+    """
+    Remove duplicate sequences from the data.
+
+    To remove duplicates, we use a dictionary to track seen sequences:
+    If a sequence has already been seen, we skip adding it to the result list.
+
+    - data: A list of dictionaries containing sequence data.
+    ex. data: [{"sequence": "ATGC...", "exons": [...], "introns": [...]}, ...]
+    """
+
+    seen = {} # control dictionary ("key" -> "already seen?")
+    result = [] # final list without duplicates
+
+    for item in data:
+        key = item["sequence"] # key = "sequence" field of item
+
+        # if key is not in seen yet, add it
+        if key not in seen:
+            seen[key] = True
+            result.append(item)
+        else:
+            pass
+
+    return result
 
 def separate_train_test(data, test_size=0.2):
     """Separate the data into training and testing sets."""
