@@ -37,7 +37,12 @@ def train_pipeline(injection_rate, name):
 
     # Use the mod1 train data to create the mod2 data, which is the X and y arrays ready for model training
     # .mod1 train → mod2 (X and y)
-    modeling.modeling_train_data(mod1_filepath_output + "_train.mod1", mod2_filepath_output)
+    ratio_degenerate = modeling.modeling_train_data(mod1_filepath_output + "_train.mod1", mod2_filepath_output)
+
+    txt_filepath = os.path.join(BASE_DIR, f"../assets/RATIO_{name}.txt")
+    with open(txt_filepath, "w") as f:
+        f.write(f"RATIO_DEGENERATE_NUCLEOTIDES = {ratio_degenerate}\n")
+    print(f"Valor do RATIO salvo com sucesso em: {txt_filepath}")
 
     # Use the mod2 data to train the model and save it for later use in validation.py
     # mod2 (X and y) → h5 model

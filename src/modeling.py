@@ -163,4 +163,7 @@ def modeling_train_data(data_filepath_input, XY_filepath_output):
     print("Concluído com sucesso!")
     print("Quantidade de bases degeneradas: ", quantidade_bases_degeneradas)
     print("Quantidade de bases: ", quantidade_bases)
-    print("Porcentagem de bases degeneradas: ", (quantidade_bases_degeneradas / quantidade_bases) * 100, "%")
+    ratio_degenerate = (quantidade_bases_degeneradas / quantidade_bases) * 100
+    print("Porcentagem de bases degeneradas: ", ratio_degenerate, "%")
+
+    return ratio_degenerate
