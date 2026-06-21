@@ -1,5 +1,5 @@
 """
-Script that with only one function, pipeline(), that executes the entire pipeline of data loading, preprocessing and model training. 
+Script that with only one function, pipeline(), that executes the entire pipeline of data loading, preprocessing and model training.
 01 - genbank_reader.py: contains functions to read and preprocess the GenBank file, including validation of records, separation of train and test datasets, and saving the processed data to files.
 """
 
@@ -12,15 +12,15 @@ import validation
 
 import argparse
 # For injection rate, 100% is like 33% of the bases being replaced by degenerate nucleotides, 50% is like 16.5%, and so on.
-INJECTION_RATE = 0.01
+DEFAULT_INJECTION_RATE = 0.0
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 genbank_data_filepath_input = os.path.join(BASE_DIR, "../assets/genbank_data/actin_fungi")
 mod1_filepath_output = os.path.join(BASE_DIR, "../assets/processed_data/mod1/data_actin_fungi")
 mod2_filepath_output = os.path.join(BASE_DIR,"../assets/processed_data/mod2/data_XY_actin_fungi.npz")
 result_filepath_output = os.path.join(BASE_DIR,"../assets/result/model_actin_fungi_onehot.h5")
- 
-def train_pipeline():
+
+def train_pipeline(injection_rate):
     # Use the genbank_data to create the mod1 data, which is the preprocessed data ready for modeling
     # .gb file → mod1 (train and test)
     print("Starting the training pipeline...")
@@ -46,11 +46,15 @@ def main():
     parser = argparse.ArgumentParser(description="Pipeline Bi-LSTM para Identificação de Íntrons/Éxons")
 
     # Argumento opcional: Modo de operação
-    parser.add_argument("mode", nargs='?', choices=["train", "test", "full"], 
+    parser.add_argument("mode", nargs='?', choices=["train", "test", "full"],
     help="Escolha o modo: train (treinar), test (validar) ou full (ambos)")
 
+    parser.add_argument("--injection-rate", type=float, default=DEFAULT_INJECTION_RATE,
+            help="Taxa de injeção de nucleotídeos degenerados (ex: 0.5 para 50%%). Padrão: 0.0")
+
     args = parser.parse_args()
-    
+    injection_rate = args.injection_rate
+
     # Se nenhum modo foi fornecido, exibir menu interativo
     if args.mode is None:
         print("\n" + "="*50)
@@ -61,22 +65,22 @@ def main():
         print("2 - test   (Validar o modelo)")
         print("3 - full   (Treinar e validar)")
         print("="*50)
-        
+
         choice = input("\nDigite o número da opção (1/2/3): ").strip()
-        
+
         modes_map = {"1": "train", "2": "test", "3": "full"}
         args.mode = modes_map.get(choice)
-        
+
         if args.mode is None:
             print("\n❌ Opção inválida! Use 1, 2 ou 3.")
             return
 
     if args.mode == "train":
-        train_pipeline()
+        train_pipeline(injection_rate)
     elif args.mode == "test":
         validate_pipeline()
     elif args.mode == "full":
-        train_pipeline()
+        train_pipeline(injection_rate)
         validate_pipeline()
 
 if __name__ == "__main__":
