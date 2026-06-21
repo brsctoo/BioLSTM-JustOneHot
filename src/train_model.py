@@ -56,7 +56,7 @@ def train_model(XY_filepath_input, result_filepath_output):
         batch_size=BATCH_SIZE,
         validation_data=(X_test, Y_test),
         class_weight=pesos_dit,
-        verbose=1 # type: ignore
+        verbose=2 # type: ignore
     )
 
     print("\nModel training completed.\n")

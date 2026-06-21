@@ -139,7 +139,6 @@ def build_XY_dataset(data):
     y_final = []
 
     for sample in data:
-        print("Processing: ", sample["sequence"][:50], "...")
         tagged_seq = tag_positions(sample)
         windows = slide_window(sample) # windows já retorna np.float16
 
